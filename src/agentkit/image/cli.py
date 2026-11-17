@@ -22,15 +22,14 @@ def register(image_parser: argparse.ArgumentParser) -> None:
     crop.add_argument("x2", type=int)
     crop.add_argument("y2", type=int)
     crop.add_argument("--out", required=True, help="Output image path")
+    crop.add_argument("--quality", type=int, help="JPEG quality: 1..95 (default: 95); JPEG output only")
     crop.set_defaults(func=handle_crop)
 
-    resize = tool.add_parser(
-        "resize",
-        help="Scale image preserving aspect ratio",
-    )
+    resize = tool.add_parser("resize", help="Scale image preserving aspect ratio")
     resize.add_argument("path")
     resize.add_argument("--scale", type=float, required=True)
     resize.add_argument("--out", required=True)
+    resize.add_argument("--quality", type=int, help="JPEG quality: 1..95 (default: 95); JPEG output only")
     resize.set_defaults(func=handle_resize)
 
     sheet = tool.add_parser("sheet", help="Create image contact sheets")
@@ -44,7 +43,10 @@ def register(image_parser: argparse.ArgumentParser) -> None:
     )
     sheet.set_defaults(func=handle_sheet)
 
-    annotate = tool.add_parser("annotate", help="Draw a rectangle outline or a line")
+    annotate = tool.add_parser(
+        "annotate", help="Draw a rectangle outline or a line",
+        description="Rectangle: x2/y2 are exclusive (same as crop). Line: both endpoints are included.",
+    )
     annotate.add_argument("path", help="Source image path")
     annotate.add_argument("shape", choices=SHAPES)
     annotate.add_argument("x1", type=int)
@@ -53,25 +55,29 @@ def register(image_parser: argparse.ArgumentParser) -> None:
     annotate.add_argument("y2", type=int)
     annotate.add_argument("--color", required=True, choices=tuple(PALETTE))
     annotate.add_argument("--out", required=True, help="Output image path")
+    annotate.add_argument("--quality", type=int, help="JPEG quality: 1..95 (default: 95); JPEG output only")
     annotate.set_defaults(func=handle_annotate)
+
 
 def handle_info(args: argparse.Namespace) -> None:
     result = get_image_info(args.path)
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
-def handle_crop(args: argparse.Namespace) -> None:
-    result = crop_image(source = args.path,
-                        output = args.out,
-                        box = (args.x1, args.y1, args.x2, args.y2))
-    print(json.dumps(result, ensure_ascii=False, indent=2))
 
-def handle_resize(args: argparse.Namespace) -> None:
-    result = resize_image(
+def handle_crop(args: argparse.Namespace) -> None:
+    result = crop_image(
         source=args.path,
         output=args.out,
-        scale=args.scale,
+        box=(args.x1, args.y1, args.x2, args.y2),
+        quality=args.quality,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+def handle_resize(args: argparse.Namespace) -> None:
+    result = resize_image(source=args.path, output=args.out, scale=args.scale, quality=args.quality)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
 
 def handle_sheet(args: argparse.Namespace) -> None:
     result = sheet_images(
@@ -81,6 +87,7 @@ def handle_sheet(args: argparse.Namespace) -> None:
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
+
 def handle_annotate(args: argparse.Namespace) -> None:
     result = annotate_image(
         source=args.path,
@@ -88,5 +95,6 @@ def handle_annotate(args: argparse.Namespace) -> None:
         shape=args.shape,
         coordinates=(args.x1, args.y1, args.x2, args.y2),
         color=args.color,
+        quality=args.quality,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))

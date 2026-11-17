@@ -38,6 +38,8 @@ def annotate_image(
     shape: str,
     coordinates: tuple[int, int, int, int],
     color: str,
+    *,
+    quality: int | None = None,
 ) -> dict[str, str]:
     if not isinstance(shape, str) or shape not in SHAPES:
         raise ValueError("Shape must be rectangle or line")
@@ -73,6 +75,14 @@ def annotate_image(
     output_format = OUTPUT_FORMATS.get(output.suffix.lower())
     if output_format is None:
         raise ValueError(f"Unsupported output format: {output.suffix}")
+    if quality is not None:
+        if type(quality) is not int:
+            raise TypeError("JPEG quality must be an integer")
+        if not 1 <= quality <= 95:
+            raise ValueError("JPEG quality must be between 1 and 95")
+        if output_format != "JPEG":
+            raise ValueError("Quality is supported only for JPEG output")
+    save_options = {"quality": 95 if quality is None else quality} if output_format == "JPEG" else {}
 
     with source.open("rb") as stream:
         data = stream.read(MAX_FILE_SIZE + 1)
@@ -86,8 +96,10 @@ def annotate_image(
                 width, height = image.size
                 if width < 1 or height < 1 or width * height > MAX_PIXELS:
                     raise ValueError("Invalid dimensions or source pixel limit exceeded")
-                # Endpoints are included, unlike crop's right/bottom boundaries.
-                if max(x1, x2) >= width or max(y1, y2) >= height:
+                # Rectangles use crop's exclusive right/bottom boundaries.
+                if shape == "rectangle" and (x2 > width or y2 > height):
+                    raise ValueError(f"Rectangle exceeds image bounds ({width}x{height})")
+                if shape == "line" and (max(x1, x2) >= width or max(y1, y2) >= height):
                     raise ValueError(
                         f"Coordinates must be within 0..{width - 1}, 0..{height - 1}"
                     )
@@ -105,8 +117,9 @@ def annotate_image(
                     points = (x1, y1, x2, y2)
                     if shape == "rectangle":
                         draw.rectangle(
-                            points, fill=None,
-                            outline=PALETTE[color], width=STROKE_WIDTH,
+                            (x1, y1, x2 - 1, y2 - 1), fill=None,
+                            outline=PALETTE[color],
+                            width=min(STROKE_WIDTH, (min(x2 - x1, y2 - y1) + 1) // 2),
                         )
                     else:
                         draw.line(points, fill=PALETTE[color], width=STROKE_WIDTH)
@@ -118,7 +131,7 @@ def annotate_image(
                         ignore_cleanup_errors=True,
                     ) as temporary_dir:
                         temporary = Path(temporary_dir) / "result.tmp"
-                        annotated.save(temporary, format=output_format)
+                        annotated.save(temporary, format=output_format, **save_options)
                         if not 0 < temporary.stat().st_size <= MAX_FILE_SIZE:
                             raise ValueError("Output file must be between 1 byte and 100 MiB")
                         os.link(temporary, output)
