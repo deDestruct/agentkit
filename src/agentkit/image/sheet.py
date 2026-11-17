@@ -1,9 +1,8 @@
-import argparse
-import json
 import os
 import tempfile
 import warnings
 from io import BytesIO
+from math import isqrt
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont, UnidentifiedImageError
@@ -13,8 +12,7 @@ MAX_PIXELS = 50_000_000
 
 SHEET_WIDTH = 1920
 SHEET_HEIGHT = 1080
-COLUMNS = 4
-ROWS = 3
+DEFAULT_PER_SHEET = 12
 GAP = 20
 LABEL_HEIGHT = 30
 BACKGROUND = "white"
@@ -85,32 +83,33 @@ def _make_thumbnail(path: Path, size: tuple[int, int]) -> Image.Image:
 def sheet_images(
     sources: str | Path | list[str | Path],
     output: str | Path,
+    *,
+    per_sheet: int = DEFAULT_PER_SHEET,
 ) -> dict[str, object]:
-    """Create numbered PNG contact sheets in the output directory.
+    if type(per_sheet) is not int:
+        raise TypeError("Images per sheet must be an integer")
+    if per_sheet < 1:
+        raise ValueError("Images per sheet must be positive")
 
-    A directory input is scanned non-recursively in filename order.
-    Explicit file paths retain their supplied order. EXIF rotation is not applied.
-    Each sheet is published without overwriting existing files. Publication of
-    the whole batch is not atomic: an I/O failure may leave completed sheets.
-    """
-    paths = _collect_sources(sources)
+    columns = isqrt(per_sheet - 1) + 1
+    rows = (per_sheet + columns - 1) // columns
 
-    if min(SHEET_WIDTH, SHEET_HEIGHT, COLUMNS, ROWS) < 1:
-        raise ValueError("Sheet dimensions and grid counts must be positive")
+    if min(SHEET_WIDTH, SHEET_HEIGHT) < 1:
+        raise ValueError("Sheet dimensions must be positive")
     if SHEET_WIDTH * SHEET_HEIGHT > MAX_PIXELS:
         raise ValueError("Sheet exceeds pixel limit")
     if GAP < 0 or LABEL_HEIGHT < 1:
         raise ValueError("Invalid sheet spacing")
 
-    cell_width = (SHEET_WIDTH - GAP * (COLUMNS + 1)) // COLUMNS
-    cell_height = (SHEET_HEIGHT - GAP * (ROWS + 1)) // ROWS
+    cell_width = (SHEET_WIDTH - GAP * (columns + 1)) // columns
+    cell_height = (SHEET_HEIGHT - GAP * (rows + 1)) // rows
     image_height = cell_height - LABEL_HEIGHT
     if cell_width < 1 or image_height < 1:
-        raise ValueError("Sheet is too small for the configured grid")
+        raise ValueError("Too many images per sheet for the configured dimensions")
 
+    paths = _collect_sources(sources)
     output = Path(output).expanduser().resolve()
     output.mkdir(parents=True, exist_ok=True)
-    per_sheet = COLUMNS * ROWS
     sheet_count = (len(paths) + per_sheet - 1) // per_sheet
     destinations = [
         output / f"sheet_{number:04d}.png"
@@ -132,7 +131,7 @@ def sheet_images(
             with Image.new("RGB", (SHEET_WIDTH, SHEET_HEIGHT), BACKGROUND) as canvas:
                 draw = ImageDraw.Draw(canvas)
                 for slot, path in enumerate(paths[start:start + per_sheet]):
-                    row, column = divmod(slot, COLUMNS)
+                    row, column = divmod(slot, columns)
                     left = GAP + column * (cell_width + GAP)
                     top = GAP + row * (cell_height + GAP)
                     index = start + slot + 1
@@ -173,4 +172,11 @@ def sheet_images(
                 ) from exc
             published.append(str(destination))
 
-    return {"status": "ok", "count": len(paths), "sheets": sheets}
+    return {
+        "status": "ok",
+        "count": len(paths),
+        "per_sheet": per_sheet,
+        "columns": columns,
+        "rows": rows,
+        "sheets": sheets,
+    }
