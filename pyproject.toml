@@ -1,0 +1,29 @@
+[project]
+name = "agentkit"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "deDestruct", email = "131010266+deDestruct@users.noreply.github.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "pillow>=13.0.0",
+]
+
+[project.scripts]
+agentkit = "agentkit:main"
+
+[build-system]
+requires = ["uv_build>=0.13.6,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.17.5",
+    "ty>=0.0.105",
+]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "C4", "RUF"]
+ignore = ["E501"]
