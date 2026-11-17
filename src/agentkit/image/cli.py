@@ -4,6 +4,7 @@ import json
 from agentkit.image.crop import crop_image
 from agentkit.image.info import get_image_info
 from agentkit.image.resize import resize_image
+from agentkit.image.sheet import sheet_images
 
 
 def register(image_parser: argparse.ArgumentParser) -> None:
@@ -31,6 +32,22 @@ def register(image_parser: argparse.ArgumentParser) -> None:
     resize.add_argument("--out", required=True)
     resize.set_defaults(func=handle_resize)
 
+    sheet = tool.add_parser(
+        "sheet",
+        help="Create image contact sheets",
+    )
+    sheet.add_argument(
+        "paths",
+        nargs="+",
+        help="One directory or multiple image paths",
+    )
+    sheet.add_argument(
+        "--out",
+        required=True,
+        help="Output directory",
+    )
+    sheet.set_defaults(func=handle_sheet)
+
 def handle_info(args: argparse.Namespace) -> None:
     result = get_image_info(args.path)
     print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -46,5 +63,12 @@ def handle_resize(args: argparse.Namespace) -> None:
         source=args.path,
         output=args.out,
         scale=args.scale,
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+def handle_sheet(args: argparse.Namespace) -> None:
+    result = sheet_images(
+        sources=args.paths,
+        output=args.out,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
