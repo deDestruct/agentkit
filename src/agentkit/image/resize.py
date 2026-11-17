@@ -60,7 +60,7 @@ def resize_image(
             raise ValueError("JPEG quality must be between 1 and 95")
         if output_format != "JPEG":
             raise ValueError("Quality is supported only for JPEG output")
-    save_options = {"quality": 95 if quality is None else quality} if output_format == "JPEG" else {}
+    save_options = {"quality": 90 if quality is None else quality} if output_format == "JPEG" else {}
 
     # Decode exactly the bytes whose size we checked.
     with source.open("rb") as stream:
