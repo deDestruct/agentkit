@@ -1,4 +1,5 @@
 import argparse
+import io
 import json
 import sys
 from typing import NoReturn
@@ -20,6 +21,14 @@ def print_error(exc: Exception) -> None:
         file=sys.stderr,
     )
 
+def configure_output() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        if isinstance(stream, io.TextIOWrapper):
+            stream.reconfigure(
+                encoding="utf-8",
+                errors="strict",
+            )
+
 
 class CLIArgumentError(Exception):
     pass
@@ -31,10 +40,14 @@ class JSONArgumentParser(argparse.ArgumentParser):
 
 
 def main() -> None:
+    configure_output()
+
     parser = JSONArgumentParser(
         prog="agentkit",
         description="CLI tools for agents",
     )
+
+    # Дальше существующий код.
 
     categories = parser.add_subparsers(required=True)
     image_register(categories.add_parser("image"))
