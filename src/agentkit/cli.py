@@ -11,7 +11,7 @@ def main() -> None:
     )
 
     categories = parser.add_subparsers(required=True)   # image/pdf/docx/xlsx
-
-    image_register(categories)  # register image tools. example crop/resize/info
+    
+    image_register(categories.add_parser("image"))  # register image tools. example crop/resize/info
 
     print("Hello? Its cli")
