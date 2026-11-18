@@ -5,6 +5,7 @@ import sys
 from typing import NoReturn
 
 from agentkit.image.cli import register as image_register
+from agentkit.pdf.cli import register as pdf_register
 
 
 def print_error(exc: Exception) -> None:
@@ -47,10 +48,10 @@ def main() -> None:
         description="CLI tools for agents",
     )
 
-    # Дальше существующий код.
-
     categories = parser.add_subparsers(required=True)
+
     image_register(categories.add_parser("image"))
+    pdf_register(categories.add_parser("pdf"))
 
     try:
         args = parser.parse_args()
