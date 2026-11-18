@@ -81,7 +81,7 @@ def annotate_image(
         if not 1 <= quality <= 95:
             raise ValueError("JPEG quality must be between 1 and 95")
         if output_format != "JPEG":
-            raise ValueError("Quality is supported only for JPEG output")
+            raise ValueError("Quality is supported only for JPEG output") # maybe warning? not exception?
     save_options = {"quality": 90 if quality is None else quality} if output_format == "JPEG" else {}
 
     with source.open("rb") as stream:
