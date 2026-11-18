@@ -1,3 +1,3 @@
-from . import info
+from . import info, render, text
 
-__all__ = ["info"]
+__all__ = ["info", "render", "text"]

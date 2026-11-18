@@ -4,6 +4,7 @@ import json
 import sys
 from typing import NoReturn
 
+from agentkit.docx.cli import register as register_docx
 from agentkit.image.cli import register as image_register
 from agentkit.pdf.cli import register as pdf_register
 
@@ -52,6 +53,7 @@ def main() -> None:
 
     image_register(categories.add_parser("image"))
     pdf_register(categories.add_parser("pdf"))
+    register_docx(categories.add_parser("docx"))
 
     try:
         args = parser.parse_args()
