@@ -27,7 +27,10 @@ $source = $env:AGENTKIT_WORD_SOURCE
 $output = $env:AGENTKIT_WORD_OUTPUT
 
 $word = $null
+$documents = $null
 $document = $null
+
+$errors = @()
 
 try {
     if ([System.IO.File]::Exists($output)) {
@@ -40,11 +43,13 @@ try {
     $word.DisplayAlerts = 0
     $word.AutomationSecurity = 3
 
-    $document = $word.Documents.Open(
-        $source,
-        $false,
-        $true,
-        $false
+    $documents = $word.Documents
+
+    $document = $documents.Open(
+        [ref]$source,
+        [ref]$false,
+        [ref]$true,
+        [ref]$false
     )
 
     $document.ExportAsFixedFormat(
@@ -53,30 +58,73 @@ try {
         $false
     )
 }
-finally {
-    try {
-        if ($null -ne $document) {
-            try {
-                $document.Close(0)
-            }
-            finally {
-                [void][System.Runtime.InteropServices.Marshal]::
-                    FinalReleaseComObject($document)
-            }
-        }
-    }
-    finally {
-        if ($null -ne $word) {
-            try {
-                $word.Quit(0)
-            }
-            finally {
-                [void][System.Runtime.InteropServices.Marshal]::
-                    FinalReleaseComObject($word)
-            }
-        }
-    }
+catch {
+    $errors += "Conversion: $($_.Exception.Message)"
 }
+finally {
+    if ($null -ne $document) {
+        try {
+            $document.Close([ref]0)
+        }
+        catch {
+            $errors += "Document.Close: $($_.Exception.Message)"
+        }
+
+        try {
+            [void][System.Runtime.InteropServices.Marshal]::
+                FinalReleaseComObject($document)
+        }
+        catch {
+            $errors += "Release document: $($_.Exception.Message)"
+        }
+
+        $document = $null
+    }
+
+    if ($null -ne $documents) {
+        try {
+            [void][System.Runtime.InteropServices.Marshal]::
+                FinalReleaseComObject($documents)
+        }
+        catch {
+            $errors += "Release documents: $($_.Exception.Message)"
+        }
+
+        $documents = $null
+    }
+
+    if ($null -ne $word) {
+        try {
+            $word.Quit([ref]0)
+        }
+        catch {
+            $errors += "Word.Quit: $($_.Exception.Message)"
+        }
+
+        try {
+            [void][System.Runtime.InteropServices.Marshal]::
+                FinalReleaseComObject($word)
+        }
+        catch {
+            $errors += "Release Word: $($_.Exception.Message)"
+        }
+
+        $word = $null
+    }
+
+    [GC]::Collect()
+    [GC]::WaitForPendingFinalizers()
+}
+
+if ($errors.Count -gt 0) {
+    [Console]::Error.WriteLine(
+        ($errors -join [Environment]::NewLine)
+    )
+
+    exit 1
+}
+
+exit 0
 """
 
 
