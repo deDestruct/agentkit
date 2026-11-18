@@ -114,6 +114,8 @@ def render_pdf(
     output: str | Path,
     dpi: int = DEFAULT_DPI,
     page: int | None = None,
+    *,
+    original_source: Path | None = None,
 ) -> dict[str, str]:
     source = Path(source).expanduser().resolve(strict=True)
     output = Path(output).expanduser().resolve()
@@ -215,7 +217,11 @@ def render_pdf(
 
         result = {
             "status": "ok",
-            "source": str(source),
+            "source": str(
+                original_source
+                if original_source is not None
+                else source
+            ),
             "format": "PNG",
             "dpi": dpi,
             "page_count": page_count,
