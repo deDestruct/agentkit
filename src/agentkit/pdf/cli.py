@@ -3,6 +3,7 @@ import json
 
 from agentkit.pdf.info import get_pdf_info
 from agentkit.pdf.render import DEFAULT_DPI, render_pdf
+from agentkit.pdf.text import extract_pdf_text
 
 
 def register(pdf_parser: argparse.ArgumentParser) -> None:
@@ -10,7 +11,11 @@ def register(pdf_parser: argparse.ArgumentParser) -> None:
 
     info = tool.add_parser("info", help="Metadata of PDF document")
     info.add_argument("path", help="Source PDF path")
-    info.add_argument("--out", required=True, help="Output JSON path")
+    info.add_argument(
+        "--out",
+        required=True,
+        help="Output JSON path",
+    )
     info.set_defaults(func=handle_info)
 
     render = tool.add_parser("render", help="Render PDF pages to PNG")
@@ -33,6 +38,25 @@ def register(pdf_parser: argparse.ArgumentParser) -> None:
     )
     render.set_defaults(func=handle_render)
 
+    text = tool.add_parser("text", help="Extract PDF text layer")
+    text.add_argument("path", help="Source PDF path")
+    text.add_argument(
+        "--page",
+        type=int,
+        help="Page number (1-based); omit to extract all pages",
+    )
+    text.add_argument(
+        "--boxes",
+        action="store_true",
+        help="Include text rectangles and their PDF coordinates",
+    )
+    text.add_argument(
+        "--out",
+        required=True,
+        help="Output JSON path",
+    )
+    text.set_defaults(func=handle_text)
+
 
 def handle_info(args: argparse.Namespace) -> None:
     result = get_pdf_info(
@@ -48,5 +72,15 @@ def handle_render(args: argparse.Namespace) -> None:
         output=args.out,
         dpi=args.dpi,
         page=args.page,
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+def handle_text(args: argparse.Namespace) -> None:
+    result = extract_pdf_text(
+        source=args.path,
+        output=args.out,
+        page=args.page,
+        boxes=args.boxes,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
