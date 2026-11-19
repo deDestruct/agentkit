@@ -14,6 +14,7 @@ uv tool install --editable .
 - Pillow
 - pypdfium2
 - python-docx
+- lxml
 
 Для рендеринга DOCX на Windows требуется Microsoft Word
 # Упрощенная структура
