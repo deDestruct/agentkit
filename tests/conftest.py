@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from PIL import Image
+from PIL import Image, PngImagePlugin
 
 
 def _fill_unique(image: Image.Image) -> None:
@@ -102,6 +102,39 @@ def garbage_file(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def empty_file(tmp_path: Path) -> Path:
+    path = tmp_path / "empty.png"
+    path.write_bytes(b"")
+    return path
+
+
+@pytest.fixture
+def padded_png(tmp_path: Path) -> Path:
+    """PNG whose ancillary text makes the file larger than its pixel payload."""
+    path = tmp_path / "padded.png"
+    image = Image.new("RGB", (4, 2))
+    try:
+        _fill_unique(image)
+        info = PngImagePlugin.PngInfo()
+        info.add_text("comment", "x" * 50_000)
+        image.save(path, pnginfo=info)
+    finally:
+        image.close()
+    return path
+
+
+@pytest.fixture
+def symlink_or_skip() -> Callable[[Path, Path], None]:
+    def create(link: Path, target: Path) -> None:
+        try:
+            link.symlink_to(target)
+        except (OSError, NotImplementedError) as exc:
+            pytest.skip(f"symlink creation is not available: {exc}")
+
+    return create
+
+
+@pytest.fixture
 def read_pixels() -> Callable[[str | Path], list[list[Any]]]:
     def read(path: str | Path) -> list[list[Any]]:
         with Image.open(path) as image:
@@ -119,7 +152,7 @@ def assert_no_leftovers() -> Callable[[Path], None]:
     def check(directory: Path) -> None:
         leftovers = [
             entry.name
-            for entry in Path(directory).iterdir()
+            for entry in Path(directory).rglob("*")
             if entry.name.startswith(".agentkit-") or entry.name.endswith(".tmp")
         ]
         assert not leftovers, f"temporary artifacts left: {leftovers}"
@@ -143,6 +176,7 @@ def run_cli() -> Callable[..., subprocess.CompletedProcess[str]]:
             encoding="utf-8",
             errors="replace",
             check=False,
+            timeout=60,
         )
 
     return run

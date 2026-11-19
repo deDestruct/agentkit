@@ -9,7 +9,28 @@ import pytest
 from PIL import Image
 
 from agentkit.image import sheet as sheet_module
-from agentkit.image.sheet import DEFAULT_PER_SHEET, sheet_images
+from agentkit.image.sheet import sheet_images
+
+CELL_WIDTH = 455
+CELL_HEIGHT = 333
+IMAGE_HEIGHT = 303
+LEFT = (20, 495, 970, 1445)
+TOP = (20, 373, 726)
+COLORS = [
+    (0, 0, 0),
+    (255, 0, 0),
+    (0, 255, 0),
+    (0, 0, 255),
+    (255, 255, 0),
+    (255, 0, 255),
+    (0, 255, 255),
+    (128, 0, 0),
+    (0, 128, 0),
+    (0, 0, 128),
+    (128, 128, 0),
+    (128, 0, 128),
+    (0, 128, 128),
+]
 
 
 def _sheets(result: dict[str, object]) -> list[dict[str, Any]]:
@@ -26,6 +47,23 @@ def _digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _solid_sources(tmp_path: Path, count: int) -> list[Path]:
+    sources = []
+    for index in range(count):
+        path = tmp_path / f"{index:02d}.png"
+        with Image.new("RGB", (CELL_WIDTH, IMAGE_HEIGHT), COLORS[index]) as image:
+            image.save(path)
+        sources.append(path)
+    return sources
+
+
+def _expected_box(slot: int) -> tuple[int, int, int, int]:
+    row, column = divmod(slot, 4)
+    left = LEFT[column]
+    top = TOP[row]
+    return left, top, left + CELL_WIDTH, top + IMAGE_HEIGHT
+
+
 def test_creates_one_sheet_for_few_images(image_factory, tmp_path: Path) -> None:
     sources = [image_factory(f"{index}.png") for index in range(4)]
     output = tmp_path / "sheets"
@@ -34,7 +72,7 @@ def test_creates_one_sheet_for_few_images(image_factory, tmp_path: Path) -> None
 
     assert result["status"] == "ok"
     assert result["count"] == 4
-    assert result["per_sheet"] == DEFAULT_PER_SHEET
+    assert result["per_sheet"] == 12
     assert result["columns"] == 4
     assert result["rows"] == 3
     sheets = _sheets(result)
@@ -58,6 +96,46 @@ def test_splits_images_between_sheets(image_factory, tmp_path: Path) -> None:
         "sheet_0002.png",
     ]
     assert [entry["index"] for entry in sheets[1]["images"]] == [13]
+
+
+def test_renders_sources_in_expected_cells_on_every_page(tmp_path: Path) -> None:
+    path_sources = _solid_sources(tmp_path, 13)
+    sources: list[str | Path] = list(path_sources)
+
+    result = sheet_images(
+        sources=sources,
+        output=tmp_path / "sheets",
+        per_sheet=12,
+    )
+
+    sheets = _sheets(result)
+    assert len(sheets) == 2
+    for page, sheet in enumerate(sheets):
+        start = page * 12
+        expected_colors = COLORS[start:start + 12]
+        expected_names = [Path(path).name for path in sources[start:start + 12]]
+        entries = sheet["images"]
+
+        assert _names(sheet) == expected_names
+        assert [entry["index"] for entry in entries] == list(
+            range(start + 1, start + len(expected_colors) + 1)
+        )
+        with Image.open(str(sheet["output"])) as image:
+            assert image.size == (1920, 1080)
+            for slot, (entry, color) in enumerate(
+                zip(entries, expected_colors, strict=True)
+            ):
+                left, top, right, bottom = _expected_box(slot)
+                assert tuple(entry["box"]) == (left, top, right, bottom)
+                assert image.getpixel((left, top)) == color
+                assert image.getpixel((right - 1, top)) == color
+                assert image.getpixel((left, bottom - 1)) == color
+                assert image.getpixel((right - 1, bottom - 1)) == color
+                assert image.getpixel(
+                    ((left + right) // 2, (top + bottom) // 2)
+                ) == color
+                assert image.getpixel((right, top)) == (255, 255, 255)
+                assert image.getpixel((left, bottom)) == (255, 255, 255)
 
 
 def test_accepts_single_directory(image_factory, tmp_path: Path) -> None:
@@ -237,12 +315,26 @@ def test_enforces_output_file_size_limit(
     monkeypatch: pytest.MonkeyPatch,
     image_factory,
     tmp_path: Path,
+    assert_no_leftovers: Callable,
 ) -> None:
-    monkeypatch.setattr(sheet_module, "MAX_FILE_SIZE", 5000)
     sources = [image_factory(f"{index}.png") for index in range(2)]
 
+    measured = tmp_path / "measured" / "sheets"
+    sheet_images(sources=sources, output=measured)
+    encoded_size = (measured / "sheet_0001.png").stat().st_size
+
+    monkeypatch.setattr(sheet_module, "MAX_FILE_SIZE", encoded_size)
+    accepted = tmp_path / "accepted" / "sheets"
+    sheet_images(sources=sources, output=accepted)
+    assert (accepted / "sheet_0001.png").stat().st_size == encoded_size
+
+    monkeypatch.setattr(sheet_module, "MAX_FILE_SIZE", encoded_size - 1)
+    rejected = tmp_path / "rejected" / "sheets"
     with pytest.raises(ValueError, match="Sheet exceeds 100 MiB limit"):
-        sheet_images(sources=sources, output=tmp_path / "sheets")
+        sheet_images(sources=sources, output=rejected)
+
+    assert not list(rejected.glob("sheet_*.png"))
+    assert_no_leftovers(rejected)
 
 
 def test_rejects_invalid_canvas_dimensions(

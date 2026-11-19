@@ -9,7 +9,7 @@ import pytest
 from PIL import Image
 
 from agentkit.image import rotate as rotate_module
-from agentkit.image.rotate import ANGLES, rotate_image
+from agentkit.image.rotate import rotate_image
 
 MAPPING = {
     90: lambda x, y, width, height: (height - 1 - y, x),
@@ -20,10 +20,6 @@ MAPPING = {
 
 def _digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def test_exposes_supported_angles() -> None:
-    assert ANGLES == (90, 180, 270)
 
 
 @pytest.mark.parametrize("angle", [90, 180, 270])
@@ -248,19 +244,38 @@ def test_enforces_output_file_size_limit(
     monkeypatch: pytest.MonkeyPatch,
     rgb_png: Path,
     tmp_path: Path,
+    assert_no_leftovers: Callable,
 ) -> None:
-    monkeypatch.setattr(rotate_module, "MAX_FILE_SIZE", 300)
+    measured = tmp_path / "measured.jpg"
+    rotate_image(source=rgb_png, output=measured, angle=90)
+    encoded_size = measured.stat().st_size
+    measured.unlink()
 
+    monkeypatch.setattr(rotate_module, "MAX_FILE_SIZE", encoded_size)
+    accepted = tmp_path / "accepted.jpg"
+    rotate_image(source=rgb_png, output=accepted, angle=90)
+    assert accepted.stat().st_size == encoded_size
+
+    monkeypatch.setattr(rotate_module, "MAX_FILE_SIZE", encoded_size - 1)
+    rejected = tmp_path / "rejected.jpg"
     with pytest.raises(ValueError, match="Output file must be between"):
-        rotate_image(source=rgb_png, output=tmp_path / "out.jpg", angle=90)
+        rotate_image(source=rgb_png, output=rejected, angle=90)
+
+    assert not rejected.exists()
+    assert_no_leftovers(tmp_path)
 
 
-def test_creates_nested_output_directory(rgb_png: Path, tmp_path: Path) -> None:
+def test_creates_nested_output_directory(
+    rgb_png: Path,
+    tmp_path: Path,
+    assert_no_leftovers: Callable,
+) -> None:
     output = tmp_path / "nested" / "deep" / "out.png"
 
     rotate_image(source=rgb_png, output=output, angle=90)
 
     assert output.is_file()
+    assert_no_leftovers(tmp_path)
 
 
 def test_does_not_modify_source_and_leaves_no_artifacts(

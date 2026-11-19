@@ -1,18 +1,29 @@
 from __future__ import annotations
 
 import hashlib
+import random
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
 import pytest
-from PIL import Image, ImageColor
+from PIL import Image
 
 from agentkit.image import annotate as annotate_module
-from agentkit.image.annotate import PALETTE, annotate_image
+from agentkit.image.annotate import annotate_image
 
 RED = (255, 0, 0)
 WHITE = (255, 255, 255)
+EXPECTED_PALETTE = {
+    "red": (255, 0, 0),
+    "green": (0, 200, 83),
+    "blue": (41, 98, 255),
+    "yellow": (255, 214, 0),
+    "orange": (255, 109, 0),
+    "purple": (170, 0, 255),
+    "black": (0, 0, 0),
+    "white": (255, 255, 255),
+}
 
 
 def _solid(tmp_path: Path, name: str, size: tuple[int, int], color: str = "white") -> Path:
@@ -98,9 +109,9 @@ def test_draws_line(tmp_path: Path) -> None:
 
 
 def test_supports_every_palette_color(tmp_path: Path) -> None:
-    source = _solid(tmp_path, "canvas.png", (20, 20))
+    source = _solid(tmp_path, "canvas.png", (20, 20), color="gray")
 
-    for color in PALETTE:
+    for color, expected in EXPECTED_PALETTE.items():
         output = tmp_path / f"{color}.png"
         annotate_image(
             source=source,
@@ -110,7 +121,7 @@ def test_supports_every_palette_color(tmp_path: Path) -> None:
             color=color,
         )
         with Image.open(output) as image:
-            assert image.getpixel((0, 0)) == ImageColor.getrgb(PALETTE[color])
+            assert image.getpixel((0, 0)) == expected
 
 
 def test_converts_palette_image(palette_png: Path, tmp_path: Path) -> None:
@@ -119,13 +130,16 @@ def test_converts_palette_image(palette_png: Path, tmp_path: Path) -> None:
     annotate_image(
         source=palette_png,
         output=output,
-        shape="rectangle",
-        coordinates=(0, 0, 4, 2),
+        shape="line",
+        coordinates=(0, 0, 0, 1),
         color="red",
     )
 
     with Image.open(output) as image:
-        assert image.mode in ("RGB", "RGBA")
+        assert image.mode == "RGBA"
+        assert image.getpixel((0, 0)) == (255, 0, 0, 255)
+        assert image.getpixel((3, 0)) == (0, 0, 0, 255)
+        assert image.getpixel((3, 1)) == (255, 255, 255, 0)
 
 
 def test_converts_bilevel_image(image_factory, tmp_path: Path) -> None:
@@ -224,7 +238,38 @@ def test_accepts_jpeg_quality(rgb_png: Path, tmp_path: Path, quality: int) -> No
         quality=quality,
     )
 
-    assert output.is_file()
+    with Image.open(output) as image:
+        assert image.format == "JPEG"
+        assert image.size == (4, 2)
+
+
+def test_lower_jpeg_quality_produces_a_smaller_file(tmp_path: Path) -> None:
+    generator = random.Random(0)
+    payload = bytes(generator.randrange(256) for _ in range(64 * 64 * 3))
+    source = tmp_path / "noise.png"
+    with Image.frombytes("RGB", (64, 64), payload) as image:
+        image.save(source)
+
+    low = tmp_path / "low.jpg"
+    high = tmp_path / "high.jpg"
+    annotate_image(
+        source=source,
+        output=low,
+        shape="line",
+        coordinates=(0, 0, 63, 63),
+        color="red",
+        quality=1,
+    )
+    annotate_image(
+        source=source,
+        output=high,
+        shape="line",
+        coordinates=(0, 0, 63, 63),
+        color="red",
+        quality=95,
+    )
+
+    assert low.stat().st_size < high.stat().st_size
 
 
 @pytest.mark.parametrize("quality", [0, 96])
@@ -502,7 +547,11 @@ def test_enforces_pixel_limit(
         )
 
 
-def test_creates_nested_output_directory(rgb_png: Path, tmp_path: Path) -> None:
+def test_creates_nested_output_directory(
+    rgb_png: Path,
+    tmp_path: Path,
+    assert_no_leftovers: Callable,
+) -> None:
     output = tmp_path / "nested" / "deep" / "out.png"
 
     annotate_image(
@@ -514,23 +563,50 @@ def test_creates_nested_output_directory(rgb_png: Path, tmp_path: Path) -> None:
     )
 
     assert output.is_file()
+    assert_no_leftovers(tmp_path)
 
 
 def test_enforces_output_file_size_limit(
     monkeypatch: pytest.MonkeyPatch,
     rgb_png: Path,
     tmp_path: Path,
+    assert_no_leftovers: Callable,
 ) -> None:
-    monkeypatch.setattr(annotate_module, "MAX_FILE_SIZE", 300)
+    measured = tmp_path / "measured.jpg"
+    annotate_image(
+        source=rgb_png,
+        output=measured,
+        shape="line",
+        coordinates=(0, 0, 3, 1),
+        color="red",
+    )
+    encoded_size = measured.stat().st_size
+    measured.unlink()
 
+    monkeypatch.setattr(annotate_module, "MAX_FILE_SIZE", encoded_size)
+    accepted = tmp_path / "accepted.jpg"
+    annotate_image(
+        source=rgb_png,
+        output=accepted,
+        shape="line",
+        coordinates=(0, 0, 3, 1),
+        color="red",
+    )
+    assert accepted.stat().st_size == encoded_size
+
+    monkeypatch.setattr(annotate_module, "MAX_FILE_SIZE", encoded_size - 1)
+    rejected = tmp_path / "rejected.jpg"
     with pytest.raises(ValueError, match="Output file must be between"):
         annotate_image(
             source=rgb_png,
-            output=tmp_path / "out.jpg",
+            output=rejected,
             shape="line",
             coordinates=(0, 0, 3, 1),
             color="red",
         )
+
+    assert not rejected.exists()
+    assert_no_leftovers(tmp_path)
 
 
 def test_rejects_invalid_stroke_width(

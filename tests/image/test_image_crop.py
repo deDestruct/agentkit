@@ -38,14 +38,18 @@ def test_crops_expected_region(
     assert read_pixels(output) == _expected_region(rgb_png, (1, 0, 3, 2))
 
 
-def test_accepts_list_box(rgb_png: Path, tmp_path: Path) -> None:
+def test_accepts_list_box(
+    rgb_png: Path,
+    tmp_path: Path,
+    read_pixels: Callable,
+) -> None:
     output = tmp_path / "list.png"
 
     box: Any = [0, 0, 2, 2]
 
     crop_image(source=rgb_png, output=output, box=box)
 
-    assert output.is_file()
+    assert read_pixels(output) == _expected_region(rgb_png, (0, 0, 2, 2))
 
 
 def test_crops_full_image(rgb_png: Path, tmp_path: Path, read_pixels: Callable) -> None:
@@ -109,6 +113,7 @@ def test_accepts_jpeg_quality(
     crop_image(source=rgb_jpeg, output=output, box=(0, 0, 2, 2), quality=quality)
 
     with Image.open(output) as image:
+        assert image.format == "JPEG"
         assert image.size == (2, 2)
 
 
@@ -261,19 +266,38 @@ def test_enforces_output_file_size_limit(
     monkeypatch: pytest.MonkeyPatch,
     rgb_png: Path,
     tmp_path: Path,
+    assert_no_leftovers: Callable,
 ) -> None:
-    monkeypatch.setattr(crop_module, "MAX_FILE_SIZE", 300)
+    measured = tmp_path / "measured.jpg"
+    crop_image(source=rgb_png, output=measured, box=(0, 0, 4, 2))
+    encoded_size = measured.stat().st_size
+    measured.unlink()
 
+    monkeypatch.setattr(crop_module, "MAX_FILE_SIZE", encoded_size)
+    accepted = tmp_path / "accepted.jpg"
+    crop_image(source=rgb_png, output=accepted, box=(0, 0, 4, 2))
+    assert accepted.stat().st_size == encoded_size
+
+    monkeypatch.setattr(crop_module, "MAX_FILE_SIZE", encoded_size - 1)
+    rejected = tmp_path / "rejected.jpg"
     with pytest.raises(ValueError, match="Output file must be between"):
-        crop_image(source=rgb_png, output=tmp_path / "out.jpg", box=(0, 0, 4, 2))
+        crop_image(source=rgb_png, output=rejected, box=(0, 0, 4, 2))
+
+    assert not rejected.exists()
+    assert_no_leftovers(tmp_path)
 
 
-def test_creates_nested_output_directory(rgb_png: Path, tmp_path: Path) -> None:
+def test_creates_nested_output_directory(
+    rgb_png: Path,
+    tmp_path: Path,
+    assert_no_leftovers: Callable,
+) -> None:
     output = tmp_path / "nested" / "deep" / "out.png"
 
     crop_image(source=rgb_png, output=output, box=(0, 0, 2, 2))
 
     assert output.is_file()
+    assert_no_leftovers(tmp_path)
 
 
 def test_accepts_uppercase_extension(rgb_png: Path, tmp_path: Path) -> None:
@@ -295,15 +319,4 @@ def test_does_not_modify_source_and_leaves_no_artifacts(
     crop_image(source=rgb_png, output=tmp_path / "out.png", box=(0, 0, 2, 2))
 
     assert _digest(rgb_png) == before
-    assert_no_leftovers(tmp_path)
-
-
-def test_leaves_no_artifacts_after_failure(
-    rgb_png: Path,
-    tmp_path: Path,
-    assert_no_leftovers: Callable,
-) -> None:
-    with pytest.raises(ValueError):
-        crop_image(source=rgb_png, output=tmp_path / "out.tga", box=(0, 0, 5, 5))
-
     assert_no_leftovers(tmp_path)

@@ -147,7 +147,9 @@ def test_missing_required_argument_uses_exit_code_two(
     captured = capsys.readouterr()
     assert code == 2
     assert captured.out == ""
-    assert _payload(captured.err)["type"] == "CLIArgumentError"
+    payload = _payload(captured.err)
+    assert payload["status"] == "error"
+    assert payload["type"] == "CLIArgumentError"
 
 
 def test_missing_subcommand_uses_exit_code_two(
@@ -158,6 +160,7 @@ def test_missing_subcommand_uses_exit_code_two(
 
     captured = capsys.readouterr()
     assert code == 2
+    assert captured.out == ""
     assert _payload(captured.err)["status"] == "error"
 
 
@@ -169,7 +172,10 @@ def test_unknown_command_uses_exit_code_two(
 
     captured = capsys.readouterr()
     assert code == 2
-    assert _payload(captured.err)["type"] == "CLIArgumentError"
+    assert captured.out == ""
+    payload = _payload(captured.err)
+    assert payload["status"] == "error"
+    assert payload["type"] == "CLIArgumentError"
 
 
 def test_invalid_angle_uses_exit_code_two(
@@ -185,7 +191,10 @@ def test_invalid_angle_uses_exit_code_two(
 
     captured = capsys.readouterr()
     assert code == 2
-    assert "invalid choice" in _payload(captured.err)["error"]
+    assert captured.out == ""
+    payload = _payload(captured.err)
+    assert payload["status"] == "error"
+    assert "invalid choice" in payload["error"]
 
 
 def test_missing_source_uses_exit_code_one(
@@ -197,7 +206,10 @@ def test_missing_source_uses_exit_code_one(
 
     captured = capsys.readouterr()
     assert code == 1
-    assert _payload(captured.err)["type"] == "FileNotFoundError"
+    assert captured.out == ""
+    payload = _payload(captured.err)
+    assert payload["status"] == "error"
+    assert payload["type"] == "FileNotFoundError"
 
 
 def test_existing_output_uses_exit_code_one(
@@ -215,7 +227,10 @@ def test_existing_output_uses_exit_code_one(
 
     captured = capsys.readouterr()
     assert code == 1
-    assert _payload(captured.err)["type"] == "FileExistsError"
+    assert captured.out == ""
+    payload = _payload(captured.err)
+    assert payload["status"] == "error"
+    assert payload["type"] == "FileExistsError"
     assert output.read_bytes() == b"sentinel"
 
 
@@ -275,7 +290,9 @@ def test_process_reports_missing_file_as_json(run_cli: Callable, tmp_path: Path)
     result = run_cli("image", "info", str(tmp_path / "absent.png"))
 
     assert result.returncode == 1
+    assert result.stdout == ""
     payload = _payload(result.stderr)
+    assert payload["status"] == "error"
     assert payload["type"] == "FileNotFoundError"
     assert "Traceback" not in result.stderr
 
@@ -286,7 +303,9 @@ def test_process_reports_unsupported_format_as_json(run_cli: Callable, rgb_png: 
     )
 
     assert result.returncode == 1
+    assert result.stdout == ""
     payload = _payload(result.stderr)
+    assert payload["status"] == "error"
     assert payload["type"] == "ValueError"
     assert "Unsupported output format" in payload["error"]
     assert "Traceback" not in result.stderr

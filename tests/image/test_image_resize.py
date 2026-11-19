@@ -128,7 +128,10 @@ def test_preserves_alpha_channel(rgba_png: Path, tmp_path: Path) -> None:
 
     with Image.open(output) as image:
         assert image.mode == "RGBA"
-        assert min(_alpha_values(image.getchannel("A"))) < 255
+        alpha = _alpha_values(image.getchannel("A"))
+        assert len(set(alpha)) > 1
+        assert min(alpha) <= 40
+        assert max(alpha) >= 160
 
 
 def test_rejects_transparency_for_jpeg(rgba_png: Path, tmp_path: Path) -> None:
@@ -230,11 +233,25 @@ def test_enforces_output_file_size_limit(
     monkeypatch: pytest.MonkeyPatch,
     rgb_png: Path,
     tmp_path: Path,
+    assert_no_leftovers: Callable,
 ) -> None:
-    monkeypatch.setattr(resize_module, "MAX_FILE_SIZE", 300)
+    measured = tmp_path / "measured.jpg"
+    resize_image(source=rgb_png, output=measured, scale=2.0)
+    encoded_size = measured.stat().st_size
+    measured.unlink()
 
+    monkeypatch.setattr(resize_module, "MAX_FILE_SIZE", encoded_size)
+    accepted = tmp_path / "accepted.jpg"
+    resize_image(source=rgb_png, output=accepted, scale=2.0)
+    assert accepted.stat().st_size == encoded_size
+
+    monkeypatch.setattr(resize_module, "MAX_FILE_SIZE", encoded_size - 1)
+    rejected = tmp_path / "rejected.jpg"
     with pytest.raises(ValueError, match="Output file must be between"):
-        resize_image(source=rgb_png, output=tmp_path / "out.jpg", scale=2.0)
+        resize_image(source=rgb_png, output=rejected, scale=2.0)
+
+    assert not rejected.exists()
+    assert_no_leftovers(tmp_path)
 
 
 @pytest.mark.parametrize("quality", [0, 96])
@@ -322,12 +339,17 @@ def test_rejects_multi_frame_image(animated_gif: Path, tmp_path: Path) -> None:
         resize_image(source=animated_gif, output=tmp_path / "out.png", scale=2.0)
 
 
-def test_creates_nested_output_directory(rgb_png: Path, tmp_path: Path) -> None:
+def test_creates_nested_output_directory(
+    rgb_png: Path,
+    tmp_path: Path,
+    assert_no_leftovers: Callable,
+) -> None:
     output = tmp_path / "nested" / "deep" / "out.png"
 
     resize_image(source=rgb_png, output=output, scale=2.0)
 
     assert output.is_file()
+    assert_no_leftovers(tmp_path)
 
 
 def test_does_not_modify_source_and_leaves_no_artifacts(
