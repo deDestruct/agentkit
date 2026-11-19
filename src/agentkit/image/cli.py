@@ -23,14 +23,14 @@ def register(image_parser: argparse.ArgumentParser) -> None:
     crop.add_argument("x2", type=int)
     crop.add_argument("y2", type=int)
     crop.add_argument("--out", required=True, help="Output image path")
-    crop.add_argument("--quality", type=int, help="JPEG quality: 1..95 (default: 95); JPEG output only")
+    crop.add_argument("--quality", type=int, help="JPEG quality: 1..95 (default: 90); JPEG output only")
     crop.set_defaults(func=handle_crop)
 
     resize = tool.add_parser("resize", help="Scale image preserving aspect ratio")
     resize.add_argument("path")
     resize.add_argument("--scale", type=float, required=True)
     resize.add_argument("--out", required=True)
-    resize.add_argument("--quality", type=int, help="JPEG quality: 1..95 (default: 95); JPEG output only")
+    resize.add_argument("--quality", type=int, help="JPEG quality: 1..95 (default: 90); JPEG output only")
     resize.set_defaults(func=handle_resize)
 
     rotate = tool.add_parser("rotate", help="Rotate image clockwise by 90, 180 or 270 degrees")
@@ -43,7 +43,7 @@ def register(image_parser: argparse.ArgumentParser) -> None:
         help="Clockwise rotation angle in degrees: 90, 180 or 270",
     )
     rotate.add_argument("--out", required=True, help="Output image path")
-    rotate.add_argument("--quality", type=int, help="JPEG quality: 1..95 (default: 95); JPEG output only")
+    rotate.add_argument("--quality", type=int, help="JPEG quality: 1..95 (default: 90); JPEG output only")
     rotate.set_defaults(func=handle_rotate)
 
     sheet = tool.add_parser("sheet", help="Create image contact sheets")
@@ -69,7 +69,7 @@ def register(image_parser: argparse.ArgumentParser) -> None:
     annotate.add_argument("y2", type=int)
     annotate.add_argument("--color", required=True, choices=tuple(PALETTE))
     annotate.add_argument("--out", required=True, help="Output image path")
-    annotate.add_argument("--quality", type=int, help="JPEG quality: 1..95 (default: 95); JPEG output only")
+    annotate.add_argument("--quality", type=int, help="JPEG quality: 1..95 (default: 90); JPEG output only")
     annotate.set_defaults(func=handle_annotate)
 
 

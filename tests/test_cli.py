@@ -9,6 +9,11 @@ from typing import Any
 import pytest
 
 from agentkit import cli
+from agentkit.docx import cli as docx_cli
+from agentkit.docx._backends._base import (
+    BackendError,
+    BackendUnavailableError,
+)
 
 COMMANDS = ("info", "crop", "resize", "rotate", "sheet", "annotate")
 
@@ -324,10 +329,45 @@ def test_process_handles_non_ascii_paths(run_cli: Callable, image_factory: Calla
     assert output.is_file()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="--quality help advertises 'default: 95' while the implementation uses 90",
+@pytest.mark.parametrize(
+    ("error_type", "message"),
+    [
+        (BackendError, "DOCX conversion failed"),
+        (BackendUnavailableError, "no DOCX rendering backend"),
+    ],
+    ids=["backend-error", "backend-unavailable"],
 )
+def test_docx_backend_errors_use_json_error_contract(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    error_type: type[Exception],
+    message: str,
+) -> None:
+    def fail_render(*args: Any, **kwargs: Any) -> None:
+        raise error_type(message)
+
+    monkeypatch.setattr(docx_cli, "render_docx", fail_render)
+
+    code = _invoke(
+        monkeypatch,
+        "docx",
+        "render",
+        str(tmp_path / "source.docx"),
+        "--out",
+        str(tmp_path / "rendered"),
+    )
+
+    captured = capsys.readouterr()
+    assert code == 1
+    assert captured.out == ""
+    assert _payload(captured.err) == {
+        "status": "error",
+        "error": message,
+        "type": error_type.__name__,
+    }
+
+
 @pytest.mark.parametrize("command", ["crop", "resize", "rotate", "annotate"])
 def test_quality_help_matches_implemented_default(run_cli: Callable, command: str) -> None:
     result = run_cli("image", command, "--help")

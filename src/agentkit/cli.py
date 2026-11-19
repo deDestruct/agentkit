@@ -4,6 +4,10 @@ import json
 import sys
 from typing import NoReturn
 
+from agentkit.docx._backends._base import (
+    BackendError,
+    BackendUnavailableError,
+)
 from agentkit.docx.cli import register as register_docx
 from agentkit.image.cli import register as image_register
 from agentkit.pdf.cli import register as pdf_register
@@ -63,7 +67,13 @@ def main() -> None:
         print_error(exc)
         sys.exit(2)
 
-    except (OSError, ValueError, TypeError) as exc:
+    except (
+        OSError,
+        ValueError,
+        TypeError,
+        BackendError,
+        BackendUnavailableError,
+    ) as exc:
         print_error(exc)
         sys.exit(1)
 
