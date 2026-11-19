@@ -5,6 +5,7 @@ from agentkit.image.annotate import PALETTE, SHAPES, annotate_image
 from agentkit.image.crop import crop_image
 from agentkit.image.info import get_image_info
 from agentkit.image.resize import resize_image
+from agentkit.image.rotate import ANGLES, rotate_image
 from agentkit.image.sheet import DEFAULT_PER_SHEET, sheet_images
 
 
@@ -31,6 +32,19 @@ def register(image_parser: argparse.ArgumentParser) -> None:
     resize.add_argument("--out", required=True)
     resize.add_argument("--quality", type=int, help="JPEG quality: 1..95 (default: 95); JPEG output only")
     resize.set_defaults(func=handle_resize)
+
+    rotate = tool.add_parser("rotate", help="Rotate image clockwise by 90, 180 or 270 degrees")
+    rotate.add_argument("path", help="Source image path")
+    rotate.add_argument(
+        "--angle",
+        type=int,
+        required=True,
+        choices=ANGLES,
+        help="Clockwise rotation angle in degrees: 90, 180 or 270",
+    )
+    rotate.add_argument("--out", required=True, help="Output image path")
+    rotate.add_argument("--quality", type=int, help="JPEG quality: 1..95 (default: 95); JPEG output only")
+    rotate.set_defaults(func=handle_rotate)
 
     sheet = tool.add_parser("sheet", help="Create image contact sheets")
     sheet.add_argument("paths", nargs="+", help="One directory or multiple image paths")
@@ -76,6 +90,16 @@ def handle_crop(args: argparse.Namespace) -> None:
 
 def handle_resize(args: argparse.Namespace) -> None:
     result = resize_image(source=args.path, output=args.out, scale=args.scale, quality=args.quality)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+def handle_rotate(args: argparse.Namespace) -> None:
+    result = rotate_image(
+        source=args.path,
+        output=args.out,
+        angle=args.angle,
+        quality=args.quality,
+    )
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 

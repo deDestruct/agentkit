@@ -28,6 +28,7 @@ Consult command-specific help when unsure about arguments. Do not invent unsuppo
 - `image info` — inspect image properties.
 - `image crop` — inspect a specific image region.
 - `image resize` — resize an image while preserving its aspect ratio.
+- `image rotate` — rotate an image clockwise by 90, 180 or 270 degrees.
 - `image annotate` — add geometric annotations.
 - `image sheet` — combine multiple images for visual inspection.
 
@@ -78,5 +79,7 @@ Open rendered images using the available image-viewing tool. Use contact sheets 
 
 - Maximum file size: 100 MiB.
 - Maximum raster image size: 50 million pixels.
+- Image transformations operate on stored pixels: EXIF Orientation is not applied automatically.
+- Output metadata, including EXIF, ICC and DPI, is not preserved.
 - DOCX rendering is currently Windows-only and requires Microsoft Word. Use trusted documents only.
 - Document generation, editing and specialized operations remain the agent's responsibility.
