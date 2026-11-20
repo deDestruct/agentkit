@@ -661,7 +661,7 @@ def _publish_artifact(
     header_json = json.dumps(
         header,
         ensure_ascii=False,
-        separators=(",", ":"),
+        indent=2,
     )
 
     with tempfile.TemporaryDirectory(
@@ -672,37 +672,49 @@ def _publish_artifact(
         temporary = Path(temporary_dir) / "result.tmp"
         total = 0
         with temporary.open("wb") as stream:
-            total = _write_bytes(stream, header_json[:-1], total)
-            total = _write_bytes(stream, ',"components":[', total)
-
-            for index, root in enumerate(tracker.retained):
-                if index:
-                    total = _write_bytes(stream, ",", total)
-                pixels = tracker.sizes[root]
-                component = {
-                    "box": [
-                        tracker.min_x[root],
-                        tracker.min_y[root],
-                        tracker.max_x[root],
-                        tracker.max_y[root],
-                    ],
-                    "pixels": pixels,
-                    "centroid": [
-                        round(tracker.sum_x[root] / pixels, 2),
-                        round(tracker.sum_y[root] / pixels, 2),
-                    ],
-                }
+            total = _write_bytes(stream, header_json[:-2], total)
+            if not tracker.retained:
+                _write_bytes(
+                    stream,
+                    ',\n  "components": []\n}\n',
+                    total,
+                )
+            else:
                 total = _write_bytes(
                     stream,
-                    json.dumps(
-                        component,
-                        ensure_ascii=False,
-                        separators=(",", ":"),
-                    ),
+                    ',\n  "components": [\n',
                     total,
                 )
 
-            _write_bytes(stream, "]}", total)
+                for index, root in enumerate(tracker.retained):
+                    if index:
+                        total = _write_bytes(stream, ",\n", total)
+                    pixels = tracker.sizes[root]
+                    component = {
+                        "box": [
+                            tracker.min_x[root],
+                            tracker.min_y[root],
+                            tracker.max_x[root],
+                            tracker.max_y[root],
+                        ],
+                        "pixels": pixels,
+                        "centroid": [
+                            round(tracker.sum_x[root] / pixels, 2),
+                            round(tracker.sum_y[root] / pixels, 2),
+                        ],
+                    }
+                    total = _write_bytes(
+                        stream,
+                        "    "
+                        + json.dumps(
+                            component,
+                            ensure_ascii=False,
+                            separators=(",", ":"),
+                        ),
+                        total,
+                    )
+
+                _write_bytes(stream, "\n  ]\n}\n", total)
 
         os.link(temporary, output)
 

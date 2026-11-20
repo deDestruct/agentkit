@@ -397,14 +397,15 @@ def test_palette_transparency_is_excluded(tmp_path: Path) -> None:
 
     result = _find(
         source,
-        color="0,255,0",
+        color="255,0,0",
         tolerance=0,
         min_area=1,
     )
 
-    assert result["summary"]["matched_pixels"] == 2
-    assert result["components"][0]["box"] == [1, 0, 2, 1]
-    assert result["components"][1]["box"] == [3, 0, 4, 1]
+    assert result["summary"]["matched_pixels"] == 0
+    assert result["summary"]["component_count"] == 0
+    assert result["summary"]["retained_component_count"] == 0
+    assert result["components"] == []
 
 
 def test_opaque_palette_and_grayscale_are_converted(
@@ -501,6 +502,52 @@ def test_single_pixel_contract(tmp_path: Path) -> None:
             }
         ],
     }
+
+
+def test_artifact_serializes_one_component_per_line(
+    tmp_path: Path,
+) -> None:
+    source = _mask_image(
+        tmp_path,
+        [[True] * 5 + [False] * 3 + [True] * 3 + [False] * 2 + [True] * 2],
+    )
+    output = tmp_path / "lines.json"
+
+    find_image(source, output, color="#FF0000", tolerance=0, min_area=1)
+
+    text = output.read_text(encoding="utf-8")
+    lines = text.splitlines()
+    assert lines[0] == "{"
+    start = lines.index('  "components": [')
+    end = lines.index("  ]")
+    component_lines = lines[start + 1 : end]
+    assert len(component_lines) == 3
+
+    components = [
+        json.loads(line.removesuffix(",")) for line in component_lines
+    ]
+    for line in component_lines:
+        assert line.startswith('    {"box":')
+
+    artifact = json.loads(text)
+    assert artifact["components"] == components
+    assert [component["pixels"] for component in components] == [5, 3, 2]
+    assert text.endswith("\n")
+
+
+def test_artifact_without_matches_is_valid_json(
+    tmp_path: Path,
+) -> None:
+    source = _mask_image(tmp_path, [[False, False, False]])
+    output = tmp_path / "empty.json"
+
+    find_image(source, output, color="#FF0000", tolerance=0)
+
+    text = output.read_text(encoding="utf-8")
+    lines = text.splitlines()
+    assert '  "components": []' in lines
+    assert json.loads(text)["components"] == []
+    assert text.endswith("\n")
 
 
 def test_exact_statistics_for_l_shape(tmp_path: Path) -> None:
