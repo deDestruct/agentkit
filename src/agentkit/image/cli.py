@@ -3,6 +3,13 @@ import json
 
 from agentkit.image.annotate import PALETTE, SHAPES, annotate_image
 from agentkit.image.crop import crop_image
+from agentkit.image.diff import (
+    DEFAULT_MIN_AREA as DIFF_DEFAULT_MIN_AREA,
+)
+from agentkit.image.diff import (
+    DEFAULT_TOLERANCE as DIFF_DEFAULT_TOLERANCE,
+)
+from agentkit.image.diff import diff_image
 from agentkit.image.find import (
     DEFAULT_MIN_AREA,
     DEFAULT_TOLERANCE,
@@ -230,6 +237,37 @@ def register(image_parser: argparse.ArgumentParser) -> None:
     )
     find.set_defaults(func=handle_find)
 
+    diff = tool.add_parser(
+        "diff",
+        help="Compare two images",
+        description=(
+            "Write a JSON difference report and a PNG visualization."
+        ),
+    )
+    diff.add_argument("before", help="Before image path")
+    diff.add_argument("after", help="After image path")
+    diff.add_argument("output", help="Output JSON path")
+    diff.add_argument("image", help="Output PNG path")
+    diff.add_argument(
+        "--tolerance",
+        type=int,
+        default=DIFF_DEFAULT_TOLERANCE,
+        help="Per-channel tolerance: 0..255 (default: %(default)s)",
+    )
+    diff.add_argument(
+        "--region",
+        type=_parse_region,
+        metavar="REGION",
+        help="Region as x1,y1,x2,y2",
+    )
+    diff.add_argument(
+        "--min-area",
+        type=int,
+        default=DIFF_DEFAULT_MIN_AREA,
+        help="Minimum changed pixels per component (default: %(default)s)",
+    )
+    diff.set_defaults(func=handle_diff)
+
 
 def handle_info(args: argparse.Namespace) -> None:
     result = get_image_info(args.path)
@@ -321,6 +359,25 @@ def handle_find(args: argparse.Namespace) -> None:
         source=args.source,
         output=args.output,
         color=args.color,
+        tolerance=args.tolerance,
+        region=args.region,
+        min_area=args.min_area,
+    )
+    print(
+        json.dumps(
+            result,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+    )
+
+
+def handle_diff(args: argparse.Namespace) -> None:
+    result = diff_image(
+        before=args.before,
+        after=args.after,
+        output=args.output,
+        image=args.image,
         tolerance=args.tolerance,
         region=args.region,
         min_area=args.min_area,

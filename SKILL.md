@@ -32,6 +32,7 @@ Consult command-specific help when unsure about arguments. Do not invent unsuppo
 - `image annotate` — add geometric annotations.
 - `image grid` — overlay a coordinate grid with optional labels for visual inspection.
 - `image find` — locate connected regions of a reference color and write a JSON analysis artifact.
+- `image diff` — compare two images, writing a JSON difference report and a PNG visualization.
 - `image sample` — inspect exact pixels, 3x3 neighborhoods and regional color statistics.
 - `image sheet` — combine multiple images for visual inspection.
 
