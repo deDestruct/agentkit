@@ -30,6 +30,7 @@ Consult command-specific help when unsure about arguments. Do not invent unsuppo
 - `image resize` — resize an image while preserving its aspect ratio.
 - `image rotate` — rotate an image clockwise by 90, 180 or 270 degrees.
 - `image annotate` — add geometric annotations.
+- `image grid` — overlay a coordinate grid with optional labels for visual inspection.
 - `image sheet` — combine multiple images for visual inspection.
 
 ### PDF

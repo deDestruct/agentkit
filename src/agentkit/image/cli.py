@@ -3,6 +3,14 @@ import json
 
 from agentkit.image.annotate import PALETTE, SHAPES, annotate_image
 from agentkit.image.crop import crop_image
+from agentkit.image.grid import (
+    DEFAULT_OPACITY,
+    DEFAULT_STEP,
+    grid_image,
+)
+from agentkit.image.grid import (
+    PALETTE as GRID_PALETTE,
+)
 from agentkit.image.info import get_image_info
 from agentkit.image.resize import resize_image
 from agentkit.image.rotate import ANGLES, rotate_image
@@ -72,6 +80,39 @@ def register(image_parser: argparse.ArgumentParser) -> None:
     annotate.add_argument("--quality", type=int, help="JPEG quality: 1..95 (default: 90); JPEG output only")
     annotate.set_defaults(func=handle_annotate)
 
+    grid = tool.add_parser(
+        "grid",
+        help="Overlay a coordinate grid",
+        description="Draw grid lines and optional coordinate labels without changing image size.",
+    )
+    grid.add_argument("source", help="Source image path")
+    grid.add_argument("output", help="Output image path")
+    grid.add_argument(
+        "--step",
+        type=int,
+        default=DEFAULT_STEP,
+        help="Grid spacing in pixels (default: %(default)s)",
+    )
+    grid.add_argument(
+        "--color",
+        choices=tuple(GRID_PALETTE),
+        default="red",
+        help="Grid color (default: %(default)s)",
+    )
+    grid.add_argument(
+        "--opacity",
+        type=int,
+        default=DEFAULT_OPACITY,
+        help="Overlay opacity percent: 0..100 (default: %(default)s)",
+    )
+    grid.add_argument(
+        "--no-labels",
+        action="store_true",
+        help="Do not draw coordinate labels",
+    )
+    grid.add_argument("--quality", type=int, help="JPEG quality: 1..95 (default: 90); JPEG output only")
+    grid.set_defaults(func=handle_grid)
+
 
 def handle_info(args: argparse.Namespace) -> None:
     result = get_image_info(args.path)
@@ -119,6 +160,19 @@ def handle_annotate(args: argparse.Namespace) -> None:
         shape=args.shape,
         coordinates=(args.x1, args.y1, args.x2, args.y2),
         color=args.color,
+        quality=args.quality,
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+def handle_grid(args: argparse.Namespace) -> None:
+    result = grid_image(
+        source=args.source,
+        output=args.output,
+        step=args.step,
+        color=args.color,
+        opacity=args.opacity,
+        labels=not args.no_labels,
         quality=args.quality,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
