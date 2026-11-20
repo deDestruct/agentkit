@@ -31,6 +31,7 @@ Consult command-specific help when unsure about arguments. Do not invent unsuppo
 - `image rotate` — rotate an image clockwise by 90, 180 or 270 degrees.
 - `image annotate` — add geometric annotations.
 - `image grid` — overlay a coordinate grid with optional labels for visual inspection.
+- `image find` — locate connected regions of a reference color and write a JSON analysis artifact.
 - `image sample` — inspect exact pixels, 3x3 neighborhoods and regional color statistics.
 - `image sheet` — combine multiple images for visual inspection.
 

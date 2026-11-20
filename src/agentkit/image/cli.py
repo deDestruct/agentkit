@@ -3,6 +3,12 @@ import json
 
 from agentkit.image.annotate import PALETTE, SHAPES, annotate_image
 from agentkit.image.crop import crop_image
+from agentkit.image.find import (
+    DEFAULT_MIN_AREA,
+    DEFAULT_TOLERANCE,
+    find_image,
+    parse_color,
+)
 from agentkit.image.grid import (
     DEFAULT_OPACITY,
     DEFAULT_STEP,
@@ -41,6 +47,14 @@ def _parse_points(value: str) -> list[tuple[int, int]]:
             ) from exc
         points.append((x, y))
     return points
+
+
+def _parse_color(value: str) -> str:
+    try:
+        parse_color(value)
+    except (TypeError, ValueError) as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
+    return value
 
 
 def _parse_region(value: str) -> tuple[int, int, int, int]:
@@ -180,6 +194,42 @@ def register(image_parser: argparse.ArgumentParser) -> None:
     )
     sample.set_defaults(func=handle_sample, sample_parser=sample)
 
+    find = tool.add_parser(
+        "find",
+        help="Find connected regions of a reference color",
+        description=(
+            "Write connected-component statistics for pixels matching a color."
+        ),
+    )
+    find.add_argument("source", help="Source image path")
+    find.add_argument("output", help="Output JSON path")
+    find.add_argument(
+        "--color",
+        type=_parse_color,
+        required=True,
+        metavar="COLOR",
+        help='Reference color as "#RRGGBB" or "R,G,B"',
+    )
+    find.add_argument(
+        "--tolerance",
+        type=int,
+        default=DEFAULT_TOLERANCE,
+        help="Per-channel tolerance: 0..255 (default: %(default)s)",
+    )
+    find.add_argument(
+        "--region",
+        type=_parse_region,
+        metavar="REGION",
+        help="Region as x1,y1,x2,y2",
+    )
+    find.add_argument(
+        "--min-area",
+        type=int,
+        default=DEFAULT_MIN_AREA,
+        help="Minimum matching pixels per component (default: %(default)s)",
+    )
+    find.set_defaults(func=handle_find)
+
 
 def handle_info(args: argparse.Namespace) -> None:
     result = get_image_info(args.path)
@@ -256,6 +306,24 @@ def handle_sample(args: argparse.Namespace) -> None:
         points=args.points,
         region=args.region,
         neighbors=args.neighbors,
+    )
+    print(
+        json.dumps(
+            result,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+    )
+
+
+def handle_find(args: argparse.Namespace) -> None:
+    result = find_image(
+        source=args.source,
+        output=args.output,
+        color=args.color,
+        tolerance=args.tolerance,
+        region=args.region,
+        min_area=args.min_area,
     )
     print(
         json.dumps(
