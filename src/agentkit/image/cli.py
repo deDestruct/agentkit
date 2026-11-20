@@ -14,7 +14,48 @@ from agentkit.image.grid import (
 from agentkit.image.info import get_image_info
 from agentkit.image.resize import resize_image
 from agentkit.image.rotate import ANGLES, rotate_image
+from agentkit.image.sample import sample_image
 from agentkit.image.sheet import DEFAULT_PER_SHEET, sheet_images
+
+
+def _parse_points(value: str) -> list[tuple[int, int]]:
+    entries = value.split(";")
+    if not entries or any(not entry.strip() for entry in entries):
+        raise argparse.ArgumentTypeError(
+            "Points must use the 'x,y;x,y;...' format"
+        )
+
+    points: list[tuple[int, int]] = []
+    for entry in entries:
+        parts = entry.split(",")
+        if len(parts) != 2:
+            raise argparse.ArgumentTypeError(
+                f"Invalid point {entry!r}: expected x,y"
+            )
+        try:
+            x = int(parts[0].strip())
+            y = int(parts[1].strip())
+        except ValueError as exc:
+            raise argparse.ArgumentTypeError(
+                f"Invalid point {entry!r}: coordinates must be integers"
+            ) from exc
+        points.append((x, y))
+    return points
+
+
+def _parse_region(value: str) -> tuple[int, int, int, int]:
+    parts = value.split(",")
+    if len(parts) != 4:
+        raise argparse.ArgumentTypeError(
+            "Region must use the 'x1,y1,x2,y2' format"
+        )
+    try:
+        x1, y1, x2, y2 = (int(part.strip()) for part in parts)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            "Region coordinates must be integers"
+        ) from exc
+    return x1, y1, x2, y2
 
 
 def register(image_parser: argparse.ArgumentParser) -> None:
@@ -113,6 +154,32 @@ def register(image_parser: argparse.ArgumentParser) -> None:
     grid.add_argument("--quality", type=int, help="JPEG quality: 1..95 (default: 90); JPEG output only")
     grid.set_defaults(func=handle_grid)
 
+    sample = tool.add_parser(
+        "sample",
+        help="Inspect pixels and regional colors",
+        description="Read-only pixel and regional color inspection.",
+    )
+    sample.add_argument("source", help="Source image path")
+    sample_mode = sample.add_mutually_exclusive_group(required=True)
+    sample_mode.add_argument(
+        "--points",
+        type=_parse_points,
+        metavar="POINTS",
+        help='Semicolon-separated points, e.g. "114,170;282,220"',
+    )
+    sample_mode.add_argument(
+        "--region",
+        type=_parse_region,
+        metavar="REGION",
+        help="Region as x1,y1,x2,y2",
+    )
+    sample.add_argument(
+        "--neighbors",
+        action="store_true",
+        help="Include a 3x3 neighborhood for each point",
+    )
+    sample.set_defaults(func=handle_sample, sample_parser=sample)
+
 
 def handle_info(args: argparse.Namespace) -> None:
     result = get_image_info(args.path)
@@ -176,3 +243,24 @@ def handle_grid(args: argparse.Namespace) -> None:
         quality=args.quality,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+def handle_sample(args: argparse.Namespace) -> None:
+    if args.neighbors and args.region is not None:
+        args.sample_parser.error(
+            "--neighbors can only be used with --points"
+        )
+
+    result = sample_image(
+        source=args.source,
+        points=args.points,
+        region=args.region,
+        neighbors=args.neighbors,
+    )
+    print(
+        json.dumps(
+            result,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+    )
